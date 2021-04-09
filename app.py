@@ -36,8 +36,8 @@ def home():
         f"/api/v1.0/precipitation<br/>"
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/<start><br/>"
-        f"/api/v1.0/<start>/<end><br/>"
+        f"/api/v1.0/<start>/<end>"
+
     )
 @app.route("/api/v1.0/precipitation")
 def precip():
@@ -64,18 +64,56 @@ def station_list():
     all_names = list(np.ravel(results))
     return jsonify(all_names)
 
-
-# * `/api/v1.0/tobs`
-#   * Query the dates and temperature observations of the most active station for the last year of data.
-
+@app.route("/api/v1.0/tobs")
+def active_station_data():
+    session = Session(engine)
+    # List the stations and the counts in descending order to obtain most active station
+    active_stations = session.query(Measurement.station, func.count(Measurement.station)).group_by(Measurement.station)\
+                                .order_by(func.count(Measurement.station).desc()).all()
+    most_active_st = active_stations[0][0]
+    # * Query the dates and temperature observations of the most active station for the last year of data.
+    active_st_temps_query=session.query(Measurement.date, Measurement.tobs).filter(Measurement.station == most_active_st).all()
+    session.close()
 #   * Return a JSON list of temperature observations (TOBS) for the previous year.
-
-# * `/api/v1.0/<start>` and `/api/v1.0/<start>/<end>`
+    list_dict_active_station_temps = []
+    for date, temp in active_st_temps_query:
+        active_st_dict = {}
+        active_st_dict[date]=temp
+        list_dict_active_station_temps.append(active_st_dict)
+    return jsonify(list_dict_active_station_temps)   
+@app.route("/api/v1.0/<sdate>,<edate>")
+def date_range(sdate,edate):
+    # print(sdate)
+    # print(edate)
+    if (sdate !="") and (edate !=""):
+        # Redo with wildly low and wildly high default start/end dates.
+        session = Session(engine)
+        start_end_query = session.query(Measurement.tobs).filter(Measurement.date >= sdate).filter(Measurement.date <= edate).all()
+        # Combine filter statements above.
+        session.close()
+    elif (sdate == "") and (edate !=""):
+        session = Session(engine)
+        start_end_query = session.query(Measurement.tobs).filter(Measurement.date <= edate).all()
+        session.close()
+    elif (sdate != "") and (edate ==""):
+        session = Session(engine)
+        start_end_query = session.query(Measurement.tobs).filter(Measurement.date >= sdate).all()
+        session.close()
+    else:
+        return("enter at least one date.")
 
 #   * Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range.
+    list_start_end_query = [result[0] for result in start_end_query]
+    temp_dict = [{0: start_end_query}]
+    
+    return jsonify(temp_dict)
+    # list_dict_start_end = []
+    # start_end_dict = {}
+    # start_end_dict["TMIN"]=min(list_start_end_query)
+    # start_end_dict["TAVG"]=sum(list_start_end_query)/len(list_start_end_query)
+    # start_end_dict["TMAX"]=max(list_start_end_query)
+    # list_dict_start_end.append(start_end_dict)
+    # return jsonify(list_dict_active_station_temps)
 
-#   * When given the start only, calculate `TMIN`, `TAVG`, and `TMAX` for all dates greater than and equal to the start date.
-
-#   * When given the start and the end date, calculate the `TMIN`, `TAVG`, and `TMAX` for dates between the start and end date inclusive.
 if __name__ == '__main__':
     app.run(debug=True)
