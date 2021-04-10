@@ -73,7 +73,7 @@ def active_station_data():
                                 .order_by(func.count(Measurement.station).desc()).all()
     most_active_st = active_stations[0][0]
     # * Query the dates and temperature observations of the most active station for the last year of data.
-    active_st_temps_query=session.query(Measurement.date, Measurement.tobs).filter(Measurement.station == most_active_st).all()
+    active_st_temps_query=session.query(Measurement.date, Measurement.tobs).filter(Measurement.station == most_active_st).filter(Measurement.date >= "2016-08-23").all()
     session.close()
 #   * Return a JSON list of temperature observations (TOBS) for the previous year.
     list_dict_active_station_temps = []
